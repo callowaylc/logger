@@ -25,6 +25,10 @@
 #   unused-packages = true
 
 
+ignored = [
+  "github.com/sar/common",
+]
+
 [prune]
   go-tests = true
   unused-packages = true
