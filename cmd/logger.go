@@ -1,19 +1,26 @@
 package main
 
 // imports //////////////////////////////////////
+
 import (
   "os"
   "fmt"
   "regexp"
+  "strings"
+  "strconv"
 
   "github.com/spf13/cobra"
   "github.com/rs/zerolog"
-  //zlog "github.com/rs/zerolog/log"
-
+  zlog "github.com/rs/zerolog/log"
 
   "github.com/callowaylc/logger/pkg"
   "github.com/callowaylc/logger/pkg/log"
 )
+
+// constants ////////////////////////////////////
+
+const ExitStatusArgument int = 3
+const ExitStatusFormat int = 4
 
 // main /////////////////////////////////////////
 
@@ -47,8 +54,15 @@ func main() {
 
       if len(args) == 0 {
         cmd.Help()
-        os.Exit(1)
+        os.Exit(ExitStatusArgument)
       }
+
+      // determine message, which is always
+      // the first argument
+      message := args[0]
+      logger.Info().
+        Str("mmessage", message).
+        Msg("Determined message")
 
       // create logger for calling process, based on priority
       var level zerolog.Level = zerolog.InfoLevel
@@ -71,12 +85,78 @@ func main() {
         Str("priority", fpriority).
         Msg("Determined priority level")
 
-      // parse arguments that will makeup the structured log line
+      // create event with determined level
+      var event *zerolog.Event = zlog.WithLevel(level)
+      logger.Info().Msg("Created log event")
 
-      //zlog.Logger = zlog.Output(zlog.ConsoleWriter{Out: os.Stderr})
+      // parse arguments that will makeup the structured log line;
+      // these should be all arguments that fall after the first, ie
+      // the message
+      if len(args) > 1 {
+        for _, pair := range args[1:] {
+          logger.Info().
+            Str("raw", pair).
+            Msg("Evaluating argument pair")
 
+          // pairs must be passed as key=value or
+          // we panic out
+          result := strings.SplitN(pair, "=", 2)
+          if len(result) != 2 {
+            logger.Error().
+              Str("raw", pair).
+              Str("result", fmt.Sprint(result)).
+              Msg("Failed to pass pair as key=value")
+            os.Exit(ExitStatusFormat)
+          }
+          k, v := result[0], result[1]
+          logger.Info().
+            Str("raw", pair).
+            Str("result", fmt.Sprint(result)).
+            Str("key", k).
+            Str("value", v).
+            Msg("Determined key/value pair")
 
-      //zlog.Info().Str("args", fmt.Sprint(args)).Msg("Submitted arguments")
+          // attempt to parse float, bool, int and then fallback
+          // to string
+          var value interface{}
+          var err error
+
+          value, err = strconv.ParseInt(v, 10, 64)
+          if err != nil || strings.Contains(v, ".") {
+            value, err = strconv.ParseFloat(v, 64)
+          }
+          if err != nil {
+            value, err = strconv.ParseBool(v)
+          }
+          if err != nil {
+            value = fmt.Sprint(v)
+          }
+          logger.Info().
+            Str("raw", pair).
+            Str("value", fmt.Sprint(value)).
+            Str("type", fmt.Sprintf("%T", value)).
+            Msg("Determined value type")
+
+          // now use type assertion against a switch statement
+          // to chain an event based on type
+          switch v := value.(type) {
+          case int64:
+            event = event.Int64(k, v)
+          case float64:
+            event = event.Float64(k, v)
+          case bool:
+            event = event.Bool(k, v)
+          default:
+            event = event.Str(k, fmt.Sprint(v))
+          }
+          logger.Info().
+            Str("raw", pair).
+            Msg("Chained event")
+        }
+      }
+
+      // finally call Msg to trigger event
+      event.Msg(message)
     },
   }
 
@@ -99,6 +179,10 @@ func main() {
     &ftag, "tag", "t", "", "Mark every line in the log with the specified tag.",
   )
   root.Execute()
+}
+
+func parse(value string, fn func()) {
+
 }
 
 func match(pattern, subject string) bool {
