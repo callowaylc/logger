@@ -11,7 +11,9 @@ import (
 
   "github.com/spf13/cobra"
   "github.com/rs/zerolog"
+  "github.com/coreos/go-systemd/journal"
   zlog "github.com/rs/zerolog/log"
+
 
   "github.com/callowaylc/logger/pkg"
   "github.com/callowaylc/logger/pkg/log"
@@ -92,6 +94,8 @@ func main() {
       // parse arguments that will makeup the structured log line;
       // these should be all arguments that fall after the first, ie
       // the message
+      kv := map[string]string{}
+
       if len(args) > 1 {
         for _, pair := range args[1:] {
           logger.Info().
@@ -109,6 +113,7 @@ func main() {
             os.Exit(ExitStatusFormat)
           }
           k, v := result[0], result[1]
+          kv[k] = v
           logger.Info().
             Str("raw", pair).
             Str("result", fmt.Sprint(result)).
@@ -155,8 +160,16 @@ func main() {
         }
       }
 
-      // finally call Msg to trigger event
+      // call Msg to trigger event
       event.Msg(message)
+
+      // check if journald is available and if the case,
+      // write to it
+      if journal.Enabled() {
+        logger.Info().
+          Msg("Journald is available")
+        journal.Send(message, journal.Priority(level), kv)
+      }
     },
   }
 
@@ -179,10 +192,6 @@ func main() {
     &ftag, "tag", "t", "", "Mark every line in the log with the specified tag.",
   )
   root.Execute()
-}
-
-func parse(value string, fn func()) {
-
 }
 
 func match(pattern, subject string) bool {
