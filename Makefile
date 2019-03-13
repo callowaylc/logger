@@ -7,6 +7,7 @@ VERSION := 1.11
 
 make:
 	mkdir -p ./build
+	rm -rf ./build/*
 	docker run \
 		--rm \
 		-e GOOS=$(OS) \
@@ -17,6 +18,9 @@ make:
 
 install:
 	mv ./build/logger-$(OS)-$(ARCH) $(PREFIX)/logger
+
+test:
+	go build -v -o ./build/logger-$(OS)-$(ARCH) ./cmd/logger.go
 
 clean:
 	rm -rf ./build

@@ -12,6 +12,7 @@ import (
   "github.com/spf13/cobra"
   "github.com/rs/zerolog"
   "github.com/coreos/go-systemd/journal"
+  "github.com/satori/go.uuid"
   zlog "github.com/rs/zerolog/log"
 
 
@@ -121,53 +122,65 @@ func main() {
             Str("value", v).
             Msg("Determined key/value pair")
 
-          // attempt to parse float, bool, int and then fallback
-          // to string
-          var value interface{}
-          var err error
+          if fstderr {
+            // if writing to stderr, we need to infer
+            // type and build zerlogger event chain
 
-          value, err = strconv.ParseInt(v, 10, 64)
-          if err != nil || strings.Contains(v, ".") {
-            value, err = strconv.ParseFloat(v, 64)
-          }
-          if err != nil {
-            value, err = strconv.ParseBool(v)
-          }
-          if err != nil {
-            value = fmt.Sprint(v)
-          }
-          logger.Info().
-            Str("raw", pair).
-            Str("value", fmt.Sprint(value)).
-            Str("type", fmt.Sprintf("%T", value)).
-            Msg("Determined value type")
+            // attempt to parse float, bool, int and then fallback
+            // to string;
+            var value interface{}
+            var err error
 
-          // now use type assertion against a switch statement
-          // to chain an event based on type
-          switch v := value.(type) {
-          case int64:
-            event = event.Int64(k, v)
-          case float64:
-            event = event.Float64(k, v)
-          case bool:
-            event = event.Bool(k, v)
-          default:
-            event = event.Str(k, fmt.Sprint(v))
+            value, err = strconv.ParseInt(v, 10, 64)
+            if err != nil || strings.Contains(v, ".") {
+              value, err = strconv.ParseFloat(v, 64)
+            }
+            if err != nil {
+              value, err = strconv.ParseBool(v)
+            }
+            if err != nil {
+              value = fmt.Sprint(v)
+            }
+            logger.Info().
+              Str("raw", pair).
+              Str("value", fmt.Sprint(value)).
+              Str("type", fmt.Sprintf("%T", value)).
+              Msg("Determined value type")
+
+            // now use type assertion against a switch statement
+            // to chain an event based on type
+            switch v := value.(type) {
+            case int64:
+              event = event.Int64(k, v)
+            case float64:
+              event = event.Float64(k, v)
+            case bool:
+              event = event.Bool(k, v)
+            default:
+              event = event.Str(k, fmt.Sprint(v))
+            }
+            logger.Info().
+              Str("raw", pair).
+              Msg("Chained event")
           }
-          logger.Info().
-            Str("raw", pair).
-            Msg("Chained event")
         }
       }
 
       // call Msg to trigger event
-      event.Msg(message)
+      if fstderr {
+        event.Msg(message)
+      }
 
       // check if journald is available and if the case,
       // write to it
       if journal.Enabled() {
+        logger.Info().Msg("Journald is available")
+
+        kv["MESSAGE_ID"] = fmt.Sprint(uuid.NewV4())
         logger.Info().
-          Msg("Journald is available")
+          Str("message_id", kv["MESSAGE_ID"]).
+          Msg("Determined message id")
+
         journal.Send(message, journal.Priority(level), kv)
       }
     },
@@ -177,7 +190,7 @@ func main() {
     &fpid, "pid", "i", false, "Log the process id of the logger process with each line.",
   )
   root.PersistentFlags().BoolVarP(
-    &fstderr, "stderr", "s", false, "NOP",
+    &fstderr, "stderr", "s", false, "Log the message to standard error, as well as the system log.",
   )
   root.PersistentFlags().BoolVarP(
     &fjson, "json", "j", true, "Express log message as json.",
