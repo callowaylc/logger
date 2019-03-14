@@ -65,7 +65,7 @@ publish:
 		--name $(TAG)
 
 test:
-	go build -v -o ./build/logger-$(OS)-$(ARCH) ./cmd/logger.go
+	vgo build -v -o ./build/logger-$(OS)-$(ARCH) ./cmd/logger.go
 
 clean:
 	rm -rf ./build
