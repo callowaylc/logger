@@ -4,7 +4,9 @@ package main
 
 import (
   "os"
+  _ "io"
   "fmt"
+  "bufio"
   "regexp"
   "strings"
   "strconv"
@@ -55,14 +57,26 @@ func main() {
         Msg("Enter")
       defer logger.Info().Msg("Exit")
 
+      var message string
       if len(args) == 0 {
-        cmd.Help()
-        os.Exit(ExitStatusArgument)
+        stat, _ := os.Stdin.Stat()
+        if (stat.Mode() & os.ModeCharDevice) == 0 {
+          logger.Info().Msg("STDIN is open")
+          in := bufio.NewScanner(os.Stdin)
+          message = in.Text()
+
+        } else {
+          cmd.Help()
+          os.Exit(ExitStatusArgument)
+        }
+
+      } else {
+        // determine message from command line arguments, which is always
+        // the first argument
+        message = args[0]
       }
 
-      // determine message, which is always
-      // the first argument
-      message := args[0]
+
       logger.Info().
         Str("mmessage", message).
         Msg("Determined message")
