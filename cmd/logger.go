@@ -214,7 +214,12 @@ func main() {
         // write to it
         if journal.Enabled() {
           logger.Info().Msg("Journald is available")
-          journal.Send(message, journal.Priority(level), kv)
+          err := journal.Send(message, journal.Priority(level), kv)
+          if err != nil {
+            logger.Info().
+              Str("error", err.Error()).
+              Msg("Failed to send message to journald")
+          }
         }
       }
     },
