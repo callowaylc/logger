@@ -59,35 +59,40 @@ func main() {
 
       var messages []string
 
-      if len(args) == 0 {
-        stat, _ := os.Stdin.Stat()
-        if (stat.Mode() & os.ModeCharDevice) == 0 {
-          logger.Info().Msg("STDIN is open")
+      stat, _ := os.Stdin.Stat()
+      if (stat.Mode() & os.ModeCharDevice) == 0 {
+        logger.Info().Msg("STDIN is open")
 
-          in := bufio.NewScanner(os.Stdin)
-          for in.Scan() {
-            message := strings.TrimSpace(in.Text())
-            messages = append(messages, message)
-            logger.Info().
-              Str("line", message).
-              Msg("Read from STDIN")
-          }
-          if in.Err() != nil {
-            logger.Info().
-              Str("error", fmt.Sprint(in.Err())).
-              Msg("Encountered an error while reading from STDIN")
-          }
-
-
-        } else {
-          cmd.Help()
-          os.Exit(ExitStatusArgument)
+        in := bufio.NewScanner(os.Stdin)
+        for in.Scan() {
+          message := strings.TrimSpace(in.Text())
+          messages = append(messages, message)
+          logger.Info().
+            Str("line", message).
+            Msg("Read from STDIN")
+        }
+        if in.Err() != nil {
+          logger.Info().
+            Str("error", fmt.Sprint(in.Err())).
+            Msg("Encountered an error while reading from STDIN")
         }
 
-      } else {
+        // prepend/push a "nil" argument onto args; attribute parsing
+        // occurs args[1+N] where N >=0; ie, we need to fulfill the
+        // expectations set fourth that attributes will occur after
+        // the initial argument
+        args = append([]string{ "" }, args...)
+
+      } else if len(args) > 0 {
         // determine message from command line arguments, which is always
         // the first argument
         messages = append(messages, strings.TrimSpace(args[0]))
+
+      } else {
+        // if no stdin and no arguments then we display our help message
+        // and exit with a failed status code
+        cmd.Help()
+        os.Exit(ExitStatusArgument)
       }
 
       for _, message := range messages {
@@ -193,17 +198,26 @@ func main() {
           }
         }
 
-        if _, ok := kv["MESSAGE_ID"]; !ok {
+        // perform a case-insensitive search for "message_id" in
+        // kv keys; if none exists, then we will need to create one
+        exists := false
+        for k, _ := range kv {
+          if strings.ToUpper(k) == "MESSAGE_ID" {
+            exists = true
+            break
+          }
+        }
+
+        if !exists {
           // if not already passed, create a message id, which will
           // be used primarily by journald but is also packaged into
           // the stderr payload
           kv["MESSAGE_ID"] = fmt.Sprint(uuid.NewV4())
-          logger.Info().
-            Str("message_id", kv["MESSAGE_ID"]).
-            Msg("Determined message id")
-
           event = event.Str("MESSAGE_ID", kv["MESSAGE_ID"])
         }
+        logger.Info().
+          Str("message_id", kv["MESSAGE_ID"]).
+          Msg("Determined message id")
 
         // call Msg to trigger event
         if fstderr {

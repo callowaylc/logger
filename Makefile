@@ -28,6 +28,7 @@ install:
 	mv ./build/logger-$(OS)-$(ARCH) $(PREFIX)/logger
 
 release:
+	# NOTE: Add latest along with calendar version
 	mkdir -p ./release
 	rm -rf ./release/*
 
