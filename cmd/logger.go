@@ -198,8 +198,21 @@ func main() {
           }
         }
 
-        // perform a case-insensitive search for "message_id" in
-        // kv keys; if none exists, then we will need to create one
+        // check if environment variable _GROUP_ID exists,
+        // in which case we can flag existence
+        v, ok := os.LookupEnv("_GROUP_ID"); if ok {
+          logger.Info().
+            Str("method", "environment").
+            Str("group_id", v).
+            Msg("Group ID was passed")
+
+          kv["GROUP_ID"] = v
+          event = event.Str("GROUP_ID", kv["GROUP_ID"])
+        }
+
+        // check if message_id has been passed as an argument
+        // if the case, we will use this value as a message
+        // primary key
         exists := false
         for k, v := range kv {
           if strings.ToUpper(k) == "MESSAGE_ID" {
@@ -214,27 +227,13 @@ func main() {
             break
           }
         }
-
-        if !exists {
-          // check if environment variable _MESSAGE_ID exists,
-          // in which case we can flag existence
-          v, ok := os.LookupEnv("_MESSAGE_ID"); if ok {
-            logger.Info().
-              Str("method", "environment").
-              Str("message_id", v).
-              Msg("Message ID was passed")
-
-            kv["MESSAGE_ID"] = v
-            exists = true
-          }
-        }
         if !exists {
           // if not already passed, create a message id, which will
           // be used primarily by journald but is also packaged into
           // the stderr payload
           kv["MESSAGE_ID"] = fmt.Sprint(uuid.NewV4())
-          event = event.Str("MESSAGE_ID", kv["MESSAGE_ID"])
         }
+        event = event.Str("MESSAGE_ID", kv["MESSAGE_ID"])
         logger.Info().
           Str("message_id", kv["MESSAGE_ID"]).
           Msg("Determined message id")
