@@ -201,13 +201,33 @@ func main() {
         // perform a case-insensitive search for "message_id" in
         // kv keys; if none exists, then we will need to create one
         exists := false
-        for k, _ := range kv {
+        for k, v := range kv {
           if strings.ToUpper(k) == "MESSAGE_ID" {
+            logger.Info().
+              Str("method", "argument").
+              Str("message_id", v).
+              Msg("Message ID was passed")
+
+            delete(kv, k)
+            kv[strings.ToUpper(k)] = v
             exists = true
             break
           }
         }
 
+        if !exists {
+          // check if environment variable _MESSAGE_ID exists,
+          // in which case we can flag existence
+          v, ok := os.LookupEnv("_MESSAGE_ID"); if ok {
+            logger.Info().
+              Str("method", "environment").
+              Str("message_id", v).
+              Msg("Message ID was passed")
+
+            kv["MESSAGE_ID"] = v
+            exists = true
+          }
+        }
         if !exists {
           // if not already passed, create a message id, which will
           // be used primarily by journald but is also packaged into
