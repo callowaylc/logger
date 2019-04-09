@@ -214,7 +214,17 @@ func main() {
         // write to it
         if journal.Enabled() {
           logger.Info().Msg("Journald is available")
-          err := journal.Send(message, journal.Priority(level), kv)
+
+          // journald fields must be uppercased
+          fkv := map[string]string{}
+          for key, value := range kv {
+            fkv[strings.ToUpper(key)] = value
+          }
+          logger.Info().
+            Str("formatted_key_value", fmt.Sprint(fkv)).
+            Msg("Formatted keys for journald")
+
+          err := journal.Send(message, journal.Priority(level), fkv)
           if err != nil {
             logger.Info().
               Str("error", err.Error()).
