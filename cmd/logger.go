@@ -4,7 +4,6 @@ package main
 
 import (
   "os"
-  _ "io"
   "fmt"
   "bufio"
   "regexp"
@@ -248,6 +247,19 @@ func main() {
         if journal.Enabled() {
           logger.Info().Msg("Journald is available")
 
+          // journald priorities are represented by different
+          // priority integer values than zerolog; we need
+          // to define a map, in order to perform a converstion,
+          // when sending to journald
+          pmap := map[zerolog.Level]journal.Priority{
+            zerolog.DebugLevel: journal.PriDebug,
+            zerolog.InfoLevel: journal.PriInfo,
+            zerolog.WarnLevel: journal.PriWarning,
+            zerolog.ErrorLevel: journal.PriErr,
+            zerolog.FatalLevel: journal.PriCrit,
+            zerolog.PanicLevel: journal.PriEmerg,
+          }
+
           // journald fields must be uppercased
           fkv := map[string]string{}
           for key, value := range kv {
@@ -257,7 +269,7 @@ func main() {
             Str("formatted_key_value", fmt.Sprint(fkv)).
             Msg("Formatted keys for journald")
 
-          err := journal.Send(message, journal.Priority(level), fkv)
+          err := journal.Send(message, journal.Priority(pmap[level]), fkv)
           if err != nil {
             logger.Info().
               Str("error", err.Error()).

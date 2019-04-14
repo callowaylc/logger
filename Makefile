@@ -29,6 +29,7 @@ install:
 
 release:
 	# NOTE: Add latest along with calendar version
+	# NOTE: Remove other releases from the same day
 	mkdir -p ./release
 	rm -rf ./release/*
 
