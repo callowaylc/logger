@@ -5,8 +5,11 @@ package log
 import(
   "os"
   "regexp"
+  "errors"
 
   "github.com/rs/zerolog"
+
+  "github.com/callowaylc/logger/pkg"
 )
 
 // constants ////////////////////////////////////
@@ -39,4 +42,48 @@ func Logger(trace string) zerolog.Logger {
 
   // otherwise return a nop logger
   return zerolog.Nop()
+}
+
+func ParseLevel(l string) (zerolog.Level, error) {
+  // attempt to parse level, using the built-in parser,
+  // and then falling back to regex match; an error is
+  // return if a level can't be determined
+  logger := Logger(pkg.Trace("ParseLevel", "log"))
+  logger.Info().
+    Str("level", l).
+    Msg("Enter")
+  defer logger.Info().Msg("Exit")
+
+  level := zerolog.InfoLevel
+  level, err := zerolog.ParseLevel(l)
+
+  if err != nil {
+    switch {
+    case match(`(?i)debug`, l):
+      level = zerolog.DebugLevel
+    case match(`(?i)notice`, l):
+      level = zerolog.InfoLevel
+    case match(`(?i)warn`, l):
+      level = zerolog.WarnLevel
+    case match(`(?i)err`, l):
+      level = zerolog.ErrorLevel
+    case match(`(?i)(crit|alert)`, l):
+      level = zerolog.FatalLevel
+    case match(`(?i)emerg`, l):
+      level = zerolog.PanicLevel
+
+    default:
+      return 0, errors.New("Failed to determine level")
+    }
+  }
+
+  return level, nil
+}
+
+func match(pattern, subject string) bool {
+  if ok, _ := regexp.MatchString(pattern, subject); ok {
+    return true
+  }
+
+  return false
 }

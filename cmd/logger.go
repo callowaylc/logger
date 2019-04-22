@@ -6,7 +6,6 @@ import (
   "os"
   "fmt"
   "bufio"
-  "regexp"
   "strings"
   "strconv"
 
@@ -14,7 +13,7 @@ import (
   "github.com/rs/zerolog"
   "github.com/coreos/go-systemd/journal"
   "github.com/satori/go.uuid"
-  zlog "github.com/rs/zerolog/log"
+  _ "github.com/rs/zerolog/log"
 
 
   "github.com/callowaylc/logger/pkg"
@@ -102,27 +101,58 @@ func main() {
         // create logger for calling process, based on priority
         kv := map[string]string{}
         var level zerolog.Level = zerolog.InfoLevel
-        switch {
-        case match(`(?i)debug`, fpriority):
-          level = zerolog.DebugLevel
-        case match(`(?i)notice`, fpriority):
-          level = zerolog.InfoLevel
-        case match(`(?i)warn`, fpriority):
-          level = zerolog.WarnLevel
-        case match(`(?i)err`, fpriority):
-          level = zerolog.ErrorLevel
-        case match(`(?i)(crit|alert)`, fpriority):
-          level = zerolog.FatalLevel
-        case match(`(?i)emerg`, fpriority):
-          level = zerolog.PanicLevel
+
+        // attempt to use zerologger to parse priorty; if that
+        // fails, we exit with a return code of 1
+        level, err := log.ParseLevel(fpriority)
+        if err != nil {
+          logger.Info().
+            Str("priority", fpriority).
+            Str("error", err.Error()).
+            Msg("Failed to determine level")
+
+          // mirrors behavior of linux logger
+          fmt.Fprintf(
+            os.Stderr,
+            "logger: unknown priority name: %s\n",
+            fpriority,
+          )
+
+          os.Exit(1)
         }
         logger.Info().
           Int("level", int(level)).
           Str("priority", fpriority).
+          Msg("Determined event level")
+
+        // create logger and event, with minimum accepted leve,
+        // if environment variable "PRIORITY" exists
+        minimum := zerolog.InfoLevel
+        v, ok := os.LookupEnv("PRIORITY"); if ok {
+          minimum, err = log.ParseLevel(v)
+          if err != nil {
+            logger.Info().
+              Str("priority", fpriority).
+              Str("error", err.Error()).
+              Msg("Failed to determine priority")
+
+            // mirrors behavior of linux logger
+            fmt.Fprintf(
+              os.Stderr,
+              "logger: unknown priority name: %s\n",
+              v,
+            )
+
+            os.Exit(1)
+          }
+        }
+        logger.Info().
+          Int("level", int(level)).
+          Int("priority", int(minimum)).
           Msg("Determined priority level")
 
-        // create event with determined level
-        var event *zerolog.Event = zlog.WithLevel(level)
+        l := zerolog.New(os.Stderr).Level(minimum)
+        var event *zerolog.Event = l.WithLevel(level)
         logger.Info().Msg("Created log event")
 
         // parse arguments that will makeup the structured log line;
@@ -199,7 +229,7 @@ func main() {
 
         // check if environment variable _GROUP_ID exists,
         // in which case we can flag existence
-        v, ok := os.LookupEnv("_GROUP_ID"); if ok {
+        v, ok = os.LookupEnv("_GROUP_ID"); if ok {
           logger.Info().
             Str("method", "environment").
             Str("group_id", v).
@@ -271,7 +301,7 @@ func main() {
 
           err := journal.Send(message, journal.Priority(pmap[level]), fkv)
           if err != nil {
-            logger.Info().
+            logger.Error().
               Str("error", err.Error()).
               Msg("Failed to send message to journald")
           }
@@ -299,14 +329,6 @@ func main() {
     &ftag, "tag", "t", "", "Mark every line in the log with the specified tag.",
   )
   root.Execute()
-}
-
-func match(pattern, subject string) bool {
-  if ok, _ := regexp.MatchString(pattern, subject); ok {
-    return true
-  }
-
-  return false
 }
 
 func trace(function string) string {
