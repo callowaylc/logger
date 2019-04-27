@@ -159,7 +159,21 @@ func main() {
         // these should be all arguments that fall after the first, ie
         // the message
         if len(args) > 1 {
-          for _, pair := range args[1:] {
+          args = args[1:]
+          logger.Info().
+            Str("arguments", fmt.Sprint(args)).
+            Msg("Parsing structured arguments")
+
+          // reverse the slice so that we can eliminate duplicates
+          for i := (len( args ) / 2 ) - 1; i >= 0; i-- {
+            opp := (len( args ) - 1 ) - i
+            args[i], args[opp] = args[opp], args[i]
+          }
+          logger.Info().
+            Str("arguments", fmt.Sprint(args)).
+            Msg("Reversed structured arguments")
+
+          for _, pair := range args {
             logger.Info().
               Str("raw", pair).
               Msg("Evaluating argument pair")
@@ -179,54 +193,67 @@ func main() {
 
             }
             k, v := result[0], result[1]
-            kv[k] = v
-            logger.Info().
-              Str("raw", pair).
-              Str("result", fmt.Sprint(result)).
-              Str("key", k).
-              Str("value", v).
-              Msg("Determined key/value pair")
 
-            if fstderr {
-              // if writing to stderr, we need to infer
-              // type and build zerlogger event chain
+            // check if key has been previously defined; if
+            // the case, then log and iterate
+            if _, ok := kv[k]; ok {
+              logger.Warn().
+                Str("raw", pair).
+                Str("result", fmt.Sprint(result)).
+                Str("key", k).
+                Str("value", v).
+                Msg("Key previously defined")
 
-              // attempt to parse float, bool, int and then fallback
-              // to string;
-              var value interface{}
-              var err error
-
-              value, err = strconv.ParseInt(v, 10, 64)
-              if err != nil || strings.Contains(v, ".") {
-                value, err = strconv.ParseFloat(v, 64)
-              }
-              if err != nil {
-                value, err = strconv.ParseBool(v)
-              }
-              if err != nil {
-                value = fmt.Sprint(v)
-              }
+            } else {
+              kv[k] = v
               logger.Info().
                 Str("raw", pair).
-                Str("value", fmt.Sprint(value)).
-                Str("type", fmt.Sprintf("%T", value)).
-                Msg("Determined value type")
+                Str("result", fmt.Sprint(result)).
+                Str("key", k).
+                Str("value", v).
+                Msg("Determined key/value pair")
 
-              // now use type assertion against a switch statement
-              // to chain an event based on type
-              switch v := value.(type) {
-              case int64:
-                event = event.Int64(k, v)
-              case float64:
-                event = event.Float64(k, v)
-              case bool:
-                event = event.Bool(k, v)
-              default:
-                event = event.Str(k, fmt.Sprint(v))
+              if fstderr {
+                // if writing to stderr, we need to infer
+                // type and build zerlogger event chain
+
+                // attempt to parse float, bool, int and then fallback
+                // to string;
+                var value interface{}
+                var err error
+
+                value, err = strconv.ParseInt(v, 10, 64)
+                if err != nil || strings.Contains(v, ".") {
+                  value, err = strconv.ParseFloat(v, 64)
+                }
+                if err != nil {
+                  value, err = strconv.ParseBool(v)
+                }
+                if err != nil {
+                  value = fmt.Sprint(v)
+                }
+                logger.Info().
+                  Str("raw", pair).
+                  Str("value", fmt.Sprint(value)).
+                  Str("type", fmt.Sprintf("%T", value)).
+                  Msg("Determined value type")
+
+                // now use type assertion against a switch statement
+                // to chain an event based on type
+                switch v := value.(type) {
+                case int64:
+                  event = event.Int64(k, v)
+                case float64:
+                  event = event.Float64(k, v)
+                case bool:
+                  event = event.Bool(k, v)
+                default:
+                  event = event.Str(k, fmt.Sprint(v))
+                }
+                logger.Info().
+                  Str("raw", pair).
+                  Msg("Chained event")
               }
-              logger.Info().
-                Str("raw", pair).
-                Msg("Chained event")
             }
           }
         }
