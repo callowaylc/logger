@@ -164,15 +164,19 @@ func main() {
               Str("raw", pair).
               Msg("Evaluating argument pair")
 
-            // pairs must be passed as key=value or
-            // we panic out
+
             result := strings.SplitN(pair, "=", 2)
-            if len(result) != 2 {
-              logger.Error().
+            if len(result) == 1 {
+              // if only a key was passed, either in the form of
+              // "key" or "key=", which can often happen when we
+              // dont resolve a variable correctly, we set value to
+              // empty string
+              logger.Info().
                 Str("raw", pair).
                 Str("result", fmt.Sprint(result)).
-                Msg("Failed to pass pair as key=value")
-              os.Exit(ExitStatusFormat)
+                Msg("Only key passed")
+              result = append(result, "")
+
             }
             k, v := result[0], result[1]
             kv[k] = v
