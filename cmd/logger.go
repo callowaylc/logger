@@ -126,9 +126,12 @@ func main() {
           Msg("Determined event level")
 
         // create logger and event, with minimum accepted leve,
-        // if environment variable "PRIORITY" exists
+        // if environment variable "PRIORITY" or "SEVERITY" exists
         minimum := zerolog.InfoLevel
-        v, ok := os.LookupEnv("PRIORITY"); if ok {
+        v, ok := os.LookupEnv("PRIORITY"); if !ok {
+          v, ok = os.LookupEnv("SEVERITY")
+        }
+        if ok {
           minimum, err = log.ParseLevel(v)
           if err != nil {
             logger.Info().
