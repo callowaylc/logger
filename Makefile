@@ -44,18 +44,34 @@ release:
 		--user $(ORG) \
 		--repo $(REPO) \
 		--tag $(TAG)
+	- github-release delete \
+		--user $(ORG) \
+		--repo $(REPO) \
+		--tag latest
 
 	github-release release --draft \
 		--user $(ORG) \
 		--repo $(REPO) \
 		--tag $(TAG) \
 		--name $(TAG)
+	github-release release --draft \
+		--user $(ORG) \
+		--repo $(REPO) \
+		--tag latest \
+		--name latest
 
 	ls ./release/* | xargs -n1 basename | xargs -n1 -I{} github-release upload \
 		--replace \
 		--user $(ORG) \
 		--repo $(REPO) \
 		--tag $(TAG) \
+		--name {} \
+    --file ./release/{}
+	ls ./release/* | xargs -n1 basename | xargs -n1 -I{} github-release upload \
+		--replace \
+		--user $(ORG) \
+		--repo $(REPO) \
+		--tag latest \
 		--name {} \
     --file ./release/{}
 
